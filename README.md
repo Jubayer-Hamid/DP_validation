@@ -56,3 +56,5 @@ This will create a directory in format `data/outputs/yyyy.mm.dd/hh.mm.ss_<method
 
 Alternatively, you can submit the job. I added ```submit_training.sh```. 
 NOTE: The only change you need to make is replace the ```--condif_name``` to be the correct config file (that you fetched above) for your task. For example, if you are running on BlockPushing, use ```--config-name=low_dim_block_pushing_diffusion_policy_cnn.yaml```. 
+
+Once you have updated ```submit_training.sh```, run ```sbatch submit_training.sh```. 

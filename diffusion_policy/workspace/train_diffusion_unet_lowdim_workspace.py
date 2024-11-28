@@ -237,6 +237,7 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                         val_per_sample_losses = []
                         val_data_pred = []
                         val_data_multiple_preds = []
+                        val_prediction_results = []
 
                         with tqdm.tqdm(val_dataloader, desc=f"Validation epoch {self.epoch}", 
                                 leave=False, mininterval=cfg.training.tqdm_interval_sec) as tepoch:
@@ -249,6 +250,25 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                                 val_data_pred.append(pred.detach().cpu().numpy())
                                 preds_new = [pred.detach().cpu().numpy() for pred in preds]
                                 val_data_multiple_preds.append(preds_new)
+
+                                # run diffusion sampling on a training batch
+                                with torch.no_grad():
+                                    # sample trajectory from training set, and evaluate difference
+                                    obs_dict = {'obs': batch['obs']}
+                                    gt_action = batch['action']
+
+                                    result = policy.predict_action(obs_dict)
+                                    if cfg.pred_action_steps_only:
+                                        pred_action = result['action']
+                                        start = cfg.n_obs_steps - 1
+                                        end = start + cfg.n_action_steps
+                                        gt_action = gt_action[:, start:end]
+                                    else:
+                                        pred_action = result['action_pred']
+                                    mse = torch.nn.functional.mse_loss(pred_action, gt_action)
+                                    # log
+                                    step_log['val_action_mse_error'] = mse.item()
+                                    val_prediction_results.append({'pred_action': pred_action.detach().cpu().numpy(), 'gt_action': gt_action.detach().cpu().numpy()})
 
                                 val_losses.append(loss)
                                 if (cfg.training.max_val_steps is not None) \
@@ -264,8 +284,13 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                                 'val_data': val_data,
                                 'per_sample_losses': val_per_sample_losses,
                                 'val_data_pred': val_data_pred,
-                                'val_data_multiple_preds': val_data_multiple_preds
+                                'val_data_multiple_preds': val_data_multiple_preds,
+                                'val_prediction_results': val_prediction_results,
                             }
+
+                            for rollout_name in ['train/mean_score', 'test/mean_score']:
+                                if rollout_name in step_log:
+                                    data_to_save[rollout_name] = step_log[rollout_name]
 
                             # save the data
                             pkl_filename = os.path.join(self.output_dir, f'validation_data_epoch_{self.epoch}.pkl')

@@ -245,35 +245,43 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                                 loss, per_sample_loss, pred, preds = self.model.compute_loss(batch)
 
-                                val_data.append({k: v.detach().cpu().numpy() for k, v in batch.items()})
-                                val_per_sample_losses.append(per_sample_loss.detach().cpu().numpy())
-                                val_data_pred.append(pred.detach().cpu().numpy())
-                                preds_new = [pred.detach().cpu().numpy() for pred in preds]
-                                val_data_multiple_preds.append(preds_new)
+                                # val_data.append({k: v.detach().cpu().numpy() for k, v in batch.items()})
+                                # val_per_sample_losses.append(per_sample_loss.detach().cpu().numpy())
+                                # val_data_pred.append(pred.detach().cpu().numpy())
+                                # preds_new = [pred.detach().cpu().numpy() for pred in preds]
+                                # val_data_multiple_preds.append(preds_new)
 
-                                # run diffusion sampling on a training batch
+                                # run diffusion sampling on a validation batch
                                 with torch.no_grad():
-                                    # sample trajectory from training set, and evaluate difference
+                                    
+                                    # sample trajectory from validation set, and evaluate difference
                                     obs_dict = {'obs': batch['obs']}
                                     gt_action = batch['action']
 
-                                    result = policy.predict_action(obs_dict)
-                                    if cfg.pred_action_steps_only:
-                                        pred_action = result['action']
-                                        start = cfg.n_obs_steps - 1
-                                        end = start + cfg.n_action_steps
-                                        gt_action = gt_action[:, start:end]
-                                    else:
-                                        pred_action = result['action_pred']
+                                    val_data_preds = []
+                                    for _ in range(10):
+                                        result = policy.predict_action(obs_dict)
+                                        if cfg.pred_action_steps_only:
+                                            pred_action = result['action']
+                                            start = cfg.n_obs_steps - 1
+                                            end = start + cfg.n_action_steps
+                                            gt_action = gt_action[:, start:end]
+                                            val_data_preds.append(pred_action.detach().cpu().numpy())
+                                        else:
+                                            pred_action = result['action_pred']
+                                            val_data_preds.append(pred_action.detach().cpu().numpy())
+                                    val_data_preds = np.array(val_data_preds)
+                                    
                                     mse = torch.nn.functional.mse_loss(pred_action, gt_action)
                                     # log
                                     step_log['val_action_mse_error'] = mse.item()
-                                    val_prediction_results.append({'pred_action': pred_action.detach().cpu().numpy(), 'gt_action': gt_action.detach().cpu().numpy()})
+                                    val_prediction_results.append({'multiple_preds': val_data_preds, 'gt_action': gt_action.detach().cpu().numpy(), 'obs': obs_dict['obs'].detach().cpu().numpy()})
 
                                 val_losses.append(loss)
                                 if (cfg.training.max_val_steps is not None) \
                                     and batch_idx >= (cfg.training.max_val_steps-1):
                                     break
+                        
                         if len(val_losses) > 0:
                             val_loss = torch.mean(torch.tensor(val_losses)).item()
                             # log epoch average validation loss
@@ -282,9 +290,9 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                             # prepare the data to save 
                             data_to_save = {
                                 'val_data': val_data,
-                                'per_sample_losses': val_per_sample_losses,
-                                'val_data_pred': val_data_pred,
-                                'val_data_multiple_preds': val_data_multiple_preds,
+                                # 'per_sample_losses': val_per_sample_losses,
+                                # 'val_data_pred': val_data_pred,
+                                # 'val_data_multiple_preds': val_data_multiple_preds,
                                 'val_prediction_results': val_prediction_results,
                             }
 

@@ -245,11 +245,11 @@ class TrainDiffusionUnetLowdimWorkspace(BaseWorkspace):
                                 batch = dict_apply(batch, lambda x: x.to(device, non_blocking=True))
                                 loss, per_sample_loss, pred, preds = self.model.compute_loss(batch)
 
-                                # val_data.append({k: v.detach().cpu().numpy() for k, v in batch.items()})
-                                # val_per_sample_losses.append(per_sample_loss.detach().cpu().numpy())
-                                # val_data_pred.append(pred.detach().cpu().numpy())
-                                # preds_new = [pred.detach().cpu().numpy() for pred in preds]
-                                # val_data_multiple_preds.append(preds_new)
+                                val_data.append({k: v.detach().cpu().numpy() for k, v in batch.items()})
+                                val_per_sample_losses.append(per_sample_loss.detach().cpu().numpy())
+                                val_data_pred.append(pred.detach().cpu().numpy())
+                                preds_new = [pred.detach().cpu().numpy() for pred in preds]
+                                val_data_multiple_preds.append(preds_new)
 
                                 # run diffusion sampling on a validation batch
                                 with torch.no_grad():
